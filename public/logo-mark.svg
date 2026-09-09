@@ -1,0 +1,8 @@
+<svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ClientFlow">
+  <rect width="44" height="44" rx="10" fill="#0E1B2A"/>
+  <!-- envelope flap -->
+  <path d="M10 15.5 L22 25 L34 15.5" stroke="#FFFFFF" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- the letter leaving: motion line + arrowhead -->
+  <path d="M8.5 32 H29" stroke="#D0342C" stroke-width="2.9" stroke-linecap="round"/>
+  <path d="M25.5 28.5 L29 32 L25.5 35.5" stroke="#D0342C" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

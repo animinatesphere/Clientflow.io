@@ -1,0 +1,131 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-paper text-ink font-sans antialiased;
+    margin: 0;
+  }
+
+  /* Display type: Archivo's width axis is the personality here. Headlines run
+     slightly narrow and tight; the wordmark runs wide. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display text-ink;
+    font-variation-settings: "wdth" 92;
+    letter-spacing: -0.018em;
+    text-wrap: balance;
+  }
+
+  /* Numbers in tables and counters must not jitter as they update. */
+  table,
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: #d0342c;
+    color: #fff;
+  }
+
+  :focus-visible {
+    outline: 2px solid #1b4b8f;
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* ── The signature device ──────────────────────────────────────────────
+     Airmail edging: alternating red and blue slashes. It appears exactly
+     three places in the product — under the hero, as the send-queue progress
+     bar, and along the top of a live campaign row. Nowhere else. */
+  .airmail {
+    background-image: repeating-linear-gradient(
+      -55deg,
+      #d0342c 0,
+      #d0342c 14px,
+      transparent 14px,
+      transparent 28px,
+      #1b4b8f 28px,
+      #1b4b8f 42px,
+      transparent 42px,
+      transparent 56px
+    );
+    background-size: 56px 100%;
+  }
+
+  .airmail-running {
+    @apply airmail animate-stripeRun;
+  }
+
+  /* Envelope paper texture — a faint grid, like the security pattern printed
+     inside a business envelope. Used only on the dark hero panel. */
+  .envelope-grid {
+    background-image: linear-gradient(
+        rgba(255, 255, 255, 0.035) 1px,
+        transparent 1px
+      ),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    background-size: 26px 26px;
+  }
+
+  .wordmark {
+    font-family: "Archivo", system-ui, sans-serif;
+    font-variation-settings: "wdth" 118;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+  }
+
+  .field {
+    @apply w-full rounded-md border border-rule bg-white px-3 py-2 text-[15px] text-ink
+      placeholder:text-slate-soft focus:border-route focus:outline-none focus:ring-2 focus:ring-route/15;
+  }
+
+  .field-dark {
+    @apply w-full rounded-md border border-ink-line bg-ink-soft px-3 py-2 text-[15px] text-white
+      placeholder:text-slate-soft focus:border-route focus:outline-none focus:ring-2 focus:ring-route/25;
+  }
+
+  .label {
+    @apply mb-1.5 block text-[13px] font-medium text-slate;
+  }
+
+  .hairline {
+    @apply border-t border-rule;
+  }
+
+  /* Scrollbars inside data panels */
+  .thin-scroll::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .thin-scroll::-webkit-scrollbar-thumb {
+    background: #c9ccc4;
+    border-radius: 99px;
+  }
+  .thin-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
