@@ -64,8 +64,13 @@ export default {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.35" },
         },
+        marquee: {
+          "0%": { transform: "translateX(0)" },
+          "100%": { transform: "translateX(-50%)" },
+        },
       },
       animation: {
+        marquee: "marquee 32s linear infinite",
         stripeRun: "stripeRun 1.6s linear infinite",
         pulseDot: "pulseDot 1.8s ease-in-out infinite",
       },

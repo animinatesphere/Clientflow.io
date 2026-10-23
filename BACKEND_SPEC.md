@@ -42,8 +42,8 @@ stop shipping.
 ```
                     ┌─────────────────────────────────────┐
    Browser  ───────▶│  Nginx (TLS, reverse proxy)         │
-   (React SPA)      │  api.clientflow.io → :5000          │
-                    │  app.clientflow.io → static /dist   │
+   (React SPA)      │  api.sendclientflow.com → :5000          │
+                    │  app.sendclientflow.com → static /dist   │
                     └───────────────┬─────────────────────┘
                                     │
                     ┌───────────────▼─────────────────────┐
@@ -124,9 +124,9 @@ not the week you want to launch.
 # ── Core ────────────────────────────────────────────────────────────────
 NODE_ENV=production
 PORT=5000
-API_URL=https://api.clientflow.io
-APP_URL=https://app.clientflow.io
-MARKETING_URL=https://clientflow.io
+API_URL=https://api.sendclientflow.com
+APP_URL=https://app.sendclientflow.com
+MARKETING_URL=https://sendclientflow.com
 
 MONGODB_URI=mongodb://127.0.0.1:27017/clientflow
 REDIS_URL=redis://127.0.0.1:6379
@@ -140,13 +140,13 @@ UNSUBSCRIBE_SECRET=              # Signs unsubscribe links.
 # ── Google OAuth ────────────────────────────────────────────────────────
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI=https://api.clientflow.io/api/mailboxes/callback/google
+GOOGLE_REDIRECT_URI=https://api.sendclientflow.com/api/mailboxes/callback/google
 
 # ── Microsoft OAuth ─────────────────────────────────────────────────────
 MS_CLIENT_ID=
 MS_CLIENT_SECRET=
 MS_TENANT_ID=common
-MS_REDIRECT_URI=https://api.clientflow.io/api/mailboxes/callback/microsoft
+MS_REDIRECT_URI=https://api.sendclientflow.com/api/mailboxes/callback/microsoft
 
 # ── Payments ────────────────────────────────────────────────────────────
 STRIPE_SECRET_KEY=
@@ -165,7 +165,7 @@ PAYSTACK_WEBHOOK_SECRET=
 
 # ── Transactional email (your own notices, not customer campaigns) ──────
 POSTMARK_TOKEN=
-SYSTEM_FROM_EMAIL=noreply@clientflow.io
+SYSTEM_FROM_EMAIL=noreply@sendclientflow.com
 
 # ── Safety rails ────────────────────────────────────────────────────────
 PLATFORM_MAX_PER_MAILBOX_PER_DAY=60
@@ -853,7 +853,7 @@ These are not optional extras. Getting them wrong is how the platform ends up bl
 **Every message must include:**
 
 ```
-List-Unsubscribe: <https://api.clientflow.io/api/u/TOKEN>, <mailto:unsubscribe@clientflow.io>
+List-Unsubscribe: <https://api.sendclientflow.com/api/u/TOKEN>, <mailto:unsubscribe@sendclientflow.com>
 List-Unsubscribe-Post: List-Unsubscribe=One-Click
 ```
 
@@ -1021,7 +1021,7 @@ module.exports = {
 ```nginx
 # /etc/nginx/sites-available/clientflow
 server {
-  server_name api.clientflow.io;
+  server_name api.sendclientflow.com;
 
   # Stripe's webhook needs the raw body — no buffering games.
   location /api/billing/webhook {
@@ -1043,7 +1043,7 @@ server {
 }
 
 server {
-  server_name app.clientflow.io;
+  server_name app.sendclientflow.com;
   root /var/www/clientflow/web/dist;
 
   # Hashed asset filenames can be cached hard.
@@ -1058,7 +1058,7 @@ server {
 sudo ln -s /etc/nginx/sites-available/clientflow /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 sudo snap install --classic certbot
-sudo certbot --nginx -d api.clientflow.io -d app.clientflow.io -d clientflow.io
+sudo certbot --nginx -d api.sendclientflow.com -d app.sendclientflow.com -d sendclientflow.com
 ```
 
 **Frontend deploy:** build locally or in CI and copy the output.

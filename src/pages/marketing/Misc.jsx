@@ -80,9 +80,9 @@ export function Contact() {
 
           <dl data-enter className="mt-10 space-y-5">
             {[
-              [Mail, "Sales and plans", "sales@clientflow.io"],
-              [LifeBuoy, "Existing customers", "support@clientflow.io"],
-              [MessageSquare, "Abuse reports", "abuse@clientflow.io"],
+              [Mail, "Sales and plans", "sales@sendclientflow.com"],
+              [LifeBuoy, "Existing customers", "support@sendclientflow.com"],
+              [MessageSquare, "Abuse reports", "abuse@sendclientflow.com"],
             ].map(([Icon, label, value]) => (
               <div key={label} className="flex items-start gap-3.5">
                 <Icon size={18} className="mt-0.5 shrink-0 text-route" />
@@ -278,7 +278,7 @@ export function AcceptableUse() {
       </Clause>
       <Clause n="5" title="Reporting abuse">
         <p>
-          Anyone can report a ClientFlow sender to abuse@clientflow.io. Reports are investigated and
+          Anyone can report a ClientFlow sender to abuse@sendclientflow.com. Reports are investigated and
           the sender is not told who complained.
         </p>
       </Clause>

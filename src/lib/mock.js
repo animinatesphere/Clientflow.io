@@ -99,7 +99,7 @@ export const DEMO_USER = {
 export const DEMO_ADMIN = {
   id: "u_0001",
   name: "Tobi Adeyemi",
-  email: "tobi@clientflow.io",
+  email: "tobi@sendclientflow.com",
   role: "admin",
   avatarTint: "#0E1B2A",
 };

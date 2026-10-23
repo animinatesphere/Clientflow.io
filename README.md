@@ -49,7 +49,7 @@ the REST path it expects in a comment above it. That file is the contract betwee
 halves of the product — if the backend matches it, nothing else here needs to change.
 
 ```env
-VITE_API_URL=https://api.clientflow.io/api
+VITE_API_URL=https://api.sendclientflow.com/api
 VITE_DEMO_MODE=false
 VITE_PAYMENTS_PUBLIC_KEY=pk_live_...
 ```
