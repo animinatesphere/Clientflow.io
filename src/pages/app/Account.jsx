@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Check, Download, UserPlus, Trash2, ArrowRight, Mail, Upload, Send } from "lucide-react";
+import { Check, Download, UserPlus, Trash2, ArrowRight, Mail, Upload, Send, MessageCircle } from "lucide-react";
 import {
   Card,
   Button,
@@ -19,10 +19,11 @@ import {
   Loading,
   Avatar,
   AirmailRule,
+  Checkbox,
   useToast,
 } from "../../components/ui";
 import { useAsync } from "../../lib/hooks";
-import { useAuth } from "../../lib/auth";
+import { useAuth, planFor, hasTeamChat } from "../../lib/auth";
 import api from "../../lib/api";
 import { money, num, fullDate, relative } from "../../lib/format";
 
@@ -231,27 +232,91 @@ export function Billing() {
 
 /* ── Team ─────────────────────────────────────────────────────────────── */
 
-const SEATS = [
-  { id: "1", name: "Adaeze Nwosu", email: "adaeze@brightfold.co", role: "Owner", lastActive: new Date().toISOString() },
-  { id: "2", name: "Ken Adigwe", email: "ken@brightfold.co", role: "Member", lastActive: new Date(Date.now() - 7200000).toISOString() },
-];
+const ROLE_LABEL = { owner: "Owner", member: "Worker", viewer: "Viewer" };
 
 export function Team() {
-  const [invite, setInvite] = useState(false);
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState("member");
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const toast = useToast();
+  const plan = planFor(user);
+  const seatLimit = plan?.limits.seats ?? 1;
+
+  const { data, loading, setData } = useAsync(() =>
+    Promise.all([api.team.list(), api.campaigns.list()]).then(([team, campaigns]) => ({ team, campaigns }))
+  );
+  const [editing, setEditing] = useState(null); // null | "new" | seat
+  const [form, setForm] = useState({ email: "", role: "member", campaignIds: [] });
+  const [busy, setBusy] = useState(false);
+
+  if (loading || !data) return <Loading rows={5} />;
+
+  const { team, campaigns } = data;
+  const used = team.length;
+  const full = used >= seatLimit;
+  const campaignName = (id) => campaigns.find((c) => c.id === id)?.name || "Campaign";
+
+  const openInvite = () => {
+    setForm({ email: "", role: "member", campaignIds: [] });
+    setEditing("new");
+  };
+  const openEdit = (seat) => {
+    setForm({ email: seat.email, role: seat.role, campaignIds: seat.campaignIds || [] });
+    setEditing(seat);
+  };
+
+  const save = async () => {
+    setBusy(true);
+    if (editing === "new") {
+      const seat = await api.team.invite(form);
+      setData({ ...data, team: [...team, seat] });
+      toast(`Invitation sent to ${seat.email}`);
+    } else {
+      const seat = await api.team.update(editing.id, { role: form.role, campaignIds: form.campaignIds });
+      setData({ ...data, team: team.map((m) => (m.id === seat.id ? seat : m)) });
+      toast(`Updated ${seat.name}`);
+    }
+    setBusy(false);
+    setEditing(null);
+  };
+
+  const remove = async (seat) => {
+    await api.team.remove(seat.id);
+    setData({ ...data, team: team.filter((m) => m.id !== seat.id) });
+    toast(`${seat.name} removed from the team`);
+  };
+
+  const message = async (seat) => {
+    const dm = await api.chat.openDirect(seat.id, user.id);
+    navigate(`/app/chat?c=${dm.id}`);
+  };
+
+  const toggleCampaign = (id, on) =>
+    setForm((f) => ({ ...f, campaignIds: on ? [...f.campaignIds, id] : f.campaignIds.filter((x) => x !== id) }));
 
   return (
     <div className="space-y-5">
       <Card className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
-        <p className="text-[14px] text-slate">
-          <span className="font-medium text-ink tnum">{SEATS.length} of 3</span> seats used on the
-          Growth plan. Seats do not affect your bill until you exceed the plan limit.
-        </p>
-        <Button onClick={() => setInvite(true)}>
-          <UserPlus size={15} /> Invite someone
-        </Button>
+        <div className="max-w-[62ch]">
+          <p className="text-[14px] text-slate">
+            <span className="font-medium text-ink tnum">
+              {used} of {seatLimit}
+            </span>{" "}
+            seats used on the {plan?.name || "current"} plan.
+          </p>
+          <p className="mt-1 text-[13px] text-slate-soft">
+            Workers get their own dashboard: the campaigns you assign them, the replies on those
+            campaigns, and team chat. They never see billing, mailbox settings or this page.
+          </p>
+        </div>
+        {seatLimit <= 1 ? (
+          <Button as={Link} to="/app/billing" variant="secondary">
+            Upgrade to add workers
+          </Button>
+        ) : (
+          <Button onClick={openInvite} disabled={full} title={full ? "Every seat is in use" : undefined}>
+            <UserPlus size={15} /> {full ? "All seats in use" : "Add a worker"}
+          </Button>
+        )}
       </Card>
 
       <Card className="overflow-hidden">
@@ -260,31 +325,66 @@ export function Team() {
             <tr>
               <Th>Person</Th>
               <Th>Role</Th>
+              <Th>Works on</Th>
               <Th>Last active</Th>
               <Th />
             </tr>
           </thead>
           <tbody>
-            {SEATS.map((s) => (
+            {team.map((s) => (
               <Tr key={s.id}>
                 <Td>
                   <div className="flex items-center gap-3">
-                    <Avatar name={s.name} size={32} />
-                    <div>
-                      <p className="font-medium">{s.name}</p>
+                    <Avatar name={s.name} size={32} tint={s.avatarTint} />
+                    <div className="min-w-0">
+                      <p className="font-medium">
+                        {s.name} {s.id === user.id && <span className="font-normal text-slate">(you)</span>}
+                      </p>
                       <p className="text-[13px] text-slate">{s.email}</p>
                     </div>
                   </div>
                 </Td>
                 <Td>
-                  <Badge tone={s.role === "Owner" ? "info" : "idle"}>{s.role}</Badge>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Badge tone={s.role === "owner" ? "info" : s.role === "member" ? "live" : "idle"}>{ROLE_LABEL[s.role]}</Badge>
+                    {s.status === "invited" && <Badge tone="hold">Invite sent</Badge>}
+                  </div>
                 </Td>
-                <Td className="text-[13.5px] text-slate">{relative(s.lastActive)}</Td>
+                <Td className="max-w-[260px]">
+                  {s.role === "owner" ? (
+                    <span className="text-[13px] text-slate">Everything</span>
+                  ) : s.campaignIds?.length ? (
+                    <div className="flex flex-wrap gap-1">
+                      {s.campaignIds.map((id) => (
+                        <span key={id} className="max-w-[200px] truncate rounded bg-paper-sunk px-1.5 py-0.5 text-[12px] text-slate">
+                          {campaignName(id)}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-[13px] text-slate-soft">Nothing assigned</span>
+                  )}
+                </Td>
+                <Td className="text-[13.5px] text-slate">{s.lastActiveAt ? relative(s.lastActiveAt) : "Not yet"}</Td>
                 <Td className="text-right">
-                  {s.role !== "Owner" && (
-                    <Button size="sm" variant="ghost" aria-label="Remove">
-                      <Trash2 size={14} />
-                    </Button>
+                  {s.id !== user.id && (
+                    <div className="flex justify-end gap-1">
+                      {hasTeamChat(user) && s.status === "active" && (
+                        <Button size="sm" variant="ghost" onClick={() => message(s)} aria-label={`Message ${s.name}`}>
+                          <MessageCircle size={14} />
+                        </Button>
+                      )}
+                      {s.role !== "owner" && (
+                        <>
+                          <Button size="sm" variant="ghost" onClick={() => openEdit(s)}>
+                            Edit
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => remove(s)} aria-label={`Remove ${s.name}`}>
+                            <Trash2 size={14} />
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   )}
                 </Td>
               </Tr>
@@ -294,39 +394,55 @@ export function Team() {
       </Card>
 
       <Modal
-        open={invite}
-        onClose={() => setInvite(false)}
-        title="Invite a teammate"
-        description="They get their own sign-in. Mailboxes stay connected to whoever authorised them."
+        open={!!editing}
+        onClose={() => setEditing(null)}
+        title={editing === "new" ? "Add a worker" : `Edit ${editing?.name}`}
+        description={
+          editing === "new"
+            ? "They get an email invitation and their own sign-in. Mailboxes stay connected to whoever authorised them."
+            : "Change what they can do and which campaigns they work on."
+        }
         footer={
           <>
-            <Button variant="secondary" onClick={() => setInvite(false)}>
+            <Button variant="secondary" onClick={() => setEditing(null)}>
               Cancel
             </Button>
-            <Button
-              disabled={!email}
-              onClick={() => {
-                toast(`Invitation sent to ${email}`);
-                setEmail("");
-                setInvite(false);
-              }}
-            >
-              Send invitation
+            <Button disabled={!form.email} loading={busy} onClick={save}>
+              {editing === "new" ? "Send invitation" : "Save changes"}
             </Button>
           </>
         }
       >
         <div className="space-y-4">
-          <Field label="Email address">
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="colleague@brightfold.co" />
-          </Field>
-          <Field label="Role" hint="Members can build and launch campaigns. Only owners can change billing.">
-            <Select value={role} onChange={(e) => setRole(e.target.value)}>
-              <option value="member">Member</option>
-              <option value="viewer">Viewer — read only</option>
-              <option value="owner">Owner</option>
+          {editing === "new" && (
+            <Field label="Email address">
+              <Input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="colleague@brightfold.co"
+              />
+            </Field>
+          )}
+          <Field label="Role">
+            <Select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+              <option value="member">Worker — runs assigned campaigns, answers replies, uses team chat</option>
+              <option value="viewer">Viewer — read only, can use team chat</option>
             </Select>
           </Field>
+          <div>
+            <p className="label">Campaigns they work on</p>
+            <ul className="divide-y divide-rule rounded-md border border-rule">
+              {campaigns.map((c) => (
+                <li key={c.id} className="flex items-center gap-3 px-3 py-2.5">
+                  <Checkbox checked={form.campaignIds.includes(c.id)} onChange={(on) => toggleCampaign(c.id, on)} />
+                  <span className="min-w-0 flex-1 truncate text-[14px]">{c.name}</span>
+                  <Badge status={c.status} />
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1.5 text-[13px] text-slate-soft">You can change this any time.</p>
+          </div>
         </div>
       </Modal>
     </div>

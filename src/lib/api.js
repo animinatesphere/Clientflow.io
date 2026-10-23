@@ -74,13 +74,31 @@ const wait = (ms = 260) => new Promise((r) => setTimeout(r, ms));
 
 /* ── Auth ─────────────────────────────────────────────────────────────── */
 
+/** Demo tokens carry the persona ("demo:user" | "demo:worker" | "demo:admin")
+    so a page refresh keeps you on the same side of the product. */
+export const demoUserFor = (as) =>
+  as === "admin" ? demo.DEMO_ADMIN : as === "worker" ? demo.DEMO_WORKER : demo.DEMO_USER;
+
+/* A worker only ever receives the campaigns they are assigned, and the
+   replies on them. The real server must apply the same filter (spec §16). */
+const demoAssigned = () =>
+  token.get() === "demo:worker" ? new Set(demo.DEMO_WORKER.campaignIds) : null;
+const demoCampaigns = () => {
+  const only = demoAssigned();
+  return only ? demo.CAMPAIGNS.filter((c) => only.has(c.id)) : demo.CAMPAIGNS;
+};
+const demoReplies = () => {
+  const only = demoAssigned();
+  return only ? demo.REPLIES.filter((r) => only.has(r.campaignId)) : demo.REPLIES;
+};
+
 export const auth = {
   // POST /auth/register  { name, email, password, company }
   register: async (data) => {
     if (DEMO) {
       await wait();
-      token.set("demo-token");
-      return { user: { ...demo.DEMO_USER, ...data, plan: null, planStatus: "trialing" }, token: "demo-token" };
+      token.set("demo:user");
+      return { user: { ...demo.DEMO_USER, ...data, plan: null, planStatus: "trialing" }, token: "demo:user" };
     }
     const r = await request("/auth/register", { method: "POST", body: data });
     token.set(r.token);
@@ -91,12 +109,10 @@ export const auth = {
   login: async ({ email, password }) => {
     if (DEMO) {
       await wait();
-      token.set("demo-token");
-      const isAdmin = email.trim().toLowerCase().startsWith("admin");
-      return {
-        user: isAdmin ? demo.DEMO_ADMIN : demo.DEMO_USER,
-        token: "demo-token",
-      };
+      const e = email.trim().toLowerCase();
+      const as = e.startsWith("admin") ? "admin" : e.startsWith("ken") || e.startsWith("worker") ? "worker" : "user";
+      token.set(`demo:${as}`);
+      return { user: demoUserFor(as), token: `demo:${as}` };
     }
     const r = await request("/auth/login", { method: "POST", body: { email, password } });
     token.set(r.token);
@@ -107,7 +123,8 @@ export const auth = {
   me: async () => {
     if (DEMO) {
       await wait(120);
-      return token.get() ? { user: demo.DEMO_USER } : null;
+      const t = token.get();
+      return t ? { user: demoUserFor(t.split(":")[1]) } : null;
     }
     return request("/auth/me");
   },
@@ -195,12 +212,12 @@ export const contacts = {
 
 export const campaigns = {
   // GET /campaigns
-  list: async () => (DEMO ? (await wait(), demo.CAMPAIGNS) : request("/campaigns")),
+  list: async () => (DEMO ? (await wait(), demoCampaigns()) : request("/campaigns")),
 
   // GET /campaigns/:id
   get: async (id) =>
     DEMO
-      ? (await wait(), demo.CAMPAIGNS.find((c) => c.id === id) || null)
+      ? (await wait(), demoCampaigns().find((c) => c.id === id) || null)
       : request(`/campaigns/${id}`),
 
   // POST /campaigns
@@ -253,7 +270,7 @@ export const campaigns = {
 
 export const replies = {
   // GET /replies?sentiment&read&campaignId
-  list: async () => (DEMO ? (await wait(), demo.REPLIES) : request("/replies")),
+  list: async () => (DEMO ? (await wait(), demoReplies()) : request("/replies")),
   // PATCH /replies/:id  { read?, sentiment? }
   update: async (id, patch) =>
     DEMO ? (await wait(120), { id, ...patch }) : request(`/replies/${id}`, { method: "PATCH", body: patch }),
@@ -278,7 +295,7 @@ export const analytics = {
   // GET /analytics/overview?range=14d
   overview: async () =>
     DEMO
-      ? (await wait(), { series: demo.SEND_SERIES, campaigns: demo.CAMPAIGNS })
+      ? (await wait(), { series: demo.SEND_SERIES, campaigns: demoCampaigns() })
       : request("/analytics/overview"),
 };
 
@@ -312,6 +329,166 @@ export const billing = {
   // POST /billing/portal → { url } to the processor's customer portal
   portal: async () =>
     DEMO ? (await wait(400), { url: null, demo: true }) : request("/billing/portal", { method: "POST" }),
+};
+
+/* ── Team ─────────────────────────────────────────────────────────────── */
+
+const demoTeam = demo.TEAM.map((m) => ({ ...m }));
+
+export const team = {
+  // GET /team  → every seat in the caller's organisation, including pending invites
+  list: async () => (DEMO ? (await wait(), demoTeam.map((m) => ({ ...m }))) : request("/team")),
+
+  // POST /team/invite  { email, role, campaignIds }  (owner only)
+  invite: async ({ email, role, campaignIds = [] }) => {
+    if (!DEMO) return request("/team/invite", { method: "POST", body: { email, role, campaignIds } });
+    await wait(400);
+    const name = email.split("@")[0].replace(/[._-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    const seat = { id: `u_${Date.now()}`, name, email, role, title: "", status: "invited", campaignIds, lastActiveAt: null };
+    demoTeam.push(seat);
+    return seat;
+  },
+
+  // PATCH /team/:id  { role?, campaignIds? }  (owner only)
+  update: async (id, patch) => {
+    if (!DEMO) return request(`/team/${id}`, { method: "PATCH", body: patch });
+    await wait();
+    const m = demoTeam.find((x) => x.id === id);
+    Object.assign(m, patch);
+    return { ...m };
+  },
+
+  // DELETE /team/:id  (owner only; cannot remove the last owner)
+  remove: async (id) => {
+    if (!DEMO) return request(`/team/${id}`, { method: "DELETE" });
+    await wait();
+    demoTeam.splice(demoTeam.findIndex((x) => x.id === id), 1);
+    return { ok: true };
+  },
+};
+
+/* ── Team chat ────────────────────────────────────────────────────────────
+   Live updates: in demo mode, listeners are notified in-process. Against a
+   real backend, subscribe() polls every few seconds; swap it for a WebSocket
+   when the server supports one, and nothing else in the UI changes. */
+
+const demoChannels = demo.CHANNELS.map((c) => ({ ...c, unread: { ...c.unread } }));
+const demoMessages = demo.MESSAGES.map((m) => ({ ...m }));
+const listeners = new Set();
+const emit = (event) => listeners.forEach((fn) => fn(event));
+
+const CANNED = [
+  "On it.",
+  "Makes sense — I'll update the sheet.",
+  "Got it, thanks!",
+  "Will do. Give me 10 minutes.",
+  "Agreed 👍",
+];
+
+function demoTeammateReply(channel, fromId) {
+  const others = channel.memberIds.filter((id) => id !== fromId);
+  if (!others.length) return;
+  const authorId = others[Math.floor(Math.random() * others.length)];
+  setTimeout(() => emit({ type: "typing", channelId: channel.id, userId: authorId }), 700);
+  setTimeout(() => {
+    demoMessages.push({
+      id: `m_${Date.now()}`,
+      channelId: channel.id,
+      authorId,
+      body: CANNED[Math.floor(Math.random() * CANNED.length)],
+      at: new Date().toISOString(),
+    });
+    channel.unread[fromId] = (channel.unread[fromId] || 0) + 1;
+    emit({ type: "message", channelId: channel.id });
+  }, 2600);
+}
+
+export const chat = {
+  // GET /chat/channels  → channels the caller belongs to, with lastMessage and unread
+  channels: async (meId) => {
+    if (!DEMO) return request("/chat/channels");
+    await wait(120);
+    return demoChannels
+      .filter((c) => c.memberIds.includes(meId))
+      .map((c) => {
+        const msgs = demoMessages.filter((m) => m.channelId === c.id);
+        return { ...c, unread: c.unread[meId] || 0, lastMessage: msgs[msgs.length - 1] || null };
+      })
+      .sort((a, b) => new Date(b.lastMessage?.at || 0) - new Date(a.lastMessage?.at || 0));
+  },
+
+  // GET /chat/channels/:id/messages
+  messages: async (channelId) => {
+    if (!DEMO) return request(`/chat/channels/${channelId}/messages`);
+    await wait(80);
+    return demoMessages.filter((m) => m.channelId === channelId).map((m) => ({ ...m }));
+  },
+
+  // POST /chat/channels/:id/messages  { body }
+  send: async (channelId, body, meId) => {
+    if (!DEMO) return request(`/chat/channels/${channelId}/messages`, { method: "POST", body: { body } });
+    const msg = { id: `m_${Date.now()}`, channelId, authorId: meId, body, at: new Date().toISOString() };
+    demoMessages.push(msg);
+    const channel = demoChannels.find((c) => c.id === channelId);
+    channel.memberIds.forEach((id) => id !== meId && (channel.unread[id] = (channel.unread[id] || 0) + 1));
+    emit({ type: "message", channelId });
+    demoTeammateReply(channel, meId);
+    return msg;
+  },
+
+  // POST /chat/channels  { name, description, memberIds }  (owner only)
+  createGroup: async ({ name, description = "", memberIds }, meId) => {
+    if (!DEMO) return request("/chat/channels", { method: "POST", body: { name, description, memberIds } });
+    await wait(300);
+    const channel = {
+      id: `ch_${Date.now()}`,
+      type: "group",
+      name,
+      description,
+      memberIds: [...new Set([meId, ...memberIds])],
+      createdBy: meId,
+      unread: {},
+    };
+    demoChannels.push(channel);
+    emit({ type: "channels" });
+    return channel;
+  },
+
+  // POST /chat/direct  { userId }  → the existing DM with that person, or a new one
+  openDirect: async (userId, meId) => {
+    if (!DEMO) return request("/chat/direct", { method: "POST", body: { userId } });
+    await wait(120);
+    let dm = demoChannels.find(
+      (c) => c.type === "direct" && c.memberIds.includes(userId) && c.memberIds.includes(meId)
+    );
+    if (!dm) {
+      dm = { id: `dm_${meId}_${userId}`, type: "direct", memberIds: [meId, userId], unread: {} };
+      demoChannels.push(dm);
+      emit({ type: "channels" });
+    }
+    return dm;
+  },
+
+  // POST /chat/channels/:id/read
+  markRead: async (channelId, meId) => {
+    if (!DEMO) return request(`/chat/channels/${channelId}/read`, { method: "POST" });
+    const c = demoChannels.find((x) => x.id === channelId);
+    if (c && c.unread[meId]) {
+      c.unread[meId] = 0;
+      emit({ type: "read", channelId });
+    }
+    return { ok: true };
+  },
+
+  /** Calls fn on every chat change. Returns an unsubscribe function. */
+  subscribe: (fn) => {
+    if (!DEMO) {
+      const id = setInterval(() => fn({ type: "poll" }), 4000);
+      return () => clearInterval(id);
+    }
+    listeners.add(fn);
+    return () => listeners.delete(fn);
+  },
 };
 
 /* ── Admin ────────────────────────────────────────────────────────────── */
@@ -371,6 +548,8 @@ export default {
   suppression,
   analytics,
   billing,
+  team,
+  chat,
   admin,
   DEMO,
 };

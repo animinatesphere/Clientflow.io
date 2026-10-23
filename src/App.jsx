@@ -26,9 +26,10 @@ import {
   LifeBuoy,
   Layers,
   ScrollText,
+  MessagesSquare,
 } from "lucide-react";
 
-import { AuthProvider, useAuth } from "./lib/auth";
+import { AuthProvider, useAuth, isWorker, hasTeamChat } from "./lib/auth";
 import { ToastProvider, Spinner } from "./components/ui";
 import Shell from "./components/app/Shell";
 import Nav from "./components/marketing/Nav";
@@ -42,6 +43,8 @@ import { About, Contact, Privacy, Terms, AcceptableUse, NotFound } from "./pages
 import { Login, Signup, ForgotPassword } from "./pages/auth/Auth";
 
 import Dashboard from "./pages/app/Dashboard";
+import WorkerDashboard from "./pages/app/WorkerDashboard";
+import TeamChat from "./pages/app/TeamChat";
 import Campaigns from "./pages/app/Campaigns";
 import CampaignBuilder from "./pages/app/CampaignBuilder";
 import CampaignDetail from "./pages/app/CampaignDetail";
@@ -73,6 +76,7 @@ const APP_NAV = [
       { to: "/app/contacts", label: "Contacts", icon: Users },
       { to: "/app/mailboxes", label: "Mailboxes", icon: Mailbox },
       { to: "/app/replies", label: "Replies", icon: Inbox, badge: 4 },
+      { to: "/app/chat", label: "Team chat", icon: MessagesSquare, chat: true },
       { to: "/app/suppression", label: "Suppression", icon: Ban },
       { to: "/app/analytics", label: "Analytics", icon: BarChart3 },
     ],
@@ -86,6 +90,27 @@ const APP_NAV = [
     ],
   },
 ];
+
+/* Workers see their own work and their team — nothing that touches billing,
+   seats, mailbox credentials, or the organisation's settings. */
+const WORKER_NAV = [
+  {
+    items: [
+      { to: "/app", label: "My work", icon: LayoutDashboard, end: true },
+      { to: "/app/campaigns", label: "Campaigns", icon: Send },
+      { to: "/app/replies", label: "Replies", icon: Inbox, badge: 2 },
+      { to: "/app/contacts", label: "Contacts", icon: Users },
+      { to: "/app/chat", label: "Team chat", icon: MessagesSquare, chat: true },
+    ],
+  },
+];
+
+/* Team chat only appears in the menu on plans that include it. */
+const navFor = (user) =>
+  (isWorker(user) ? WORKER_NAV : APP_NAV).map((g) => ({
+    ...g,
+    items: g.items.filter((i) => !i.chat || hasTeamChat(user)),
+  }));
 
 const ADMIN_NAV = [
   {
@@ -119,6 +144,7 @@ const TITLES = [
   ["/app/analytics", "Analytics"],
   ["/app/billing", "Plan and billing"],
   ["/app/team", "Team"],
+  ["/app/chat", "Team chat"],
   ["/app/settings", "Settings"],
   ["/app/onboarding", "Getting started"],
   ["/app", "Overview"],
@@ -176,7 +202,20 @@ function Protected({ role }) {
 
 function AppShellRoute() {
   const { pathname } = useLocation();
-  return <Shell nav={APP_NAV} variant="app" title={titleFor(pathname)} />;
+  const { user } = useAuth();
+  const title = pathname === "/app" && isWorker(user) ? "My work" : titleFor(pathname);
+  return <Shell nav={navFor(user)} variant="app" title={title} />;
+}
+
+/** Pages only the account owner may open. Workers are sent to their dashboard. */
+function OwnerOnly() {
+  const { user } = useAuth();
+  return isWorker(user) ? <Navigate to="/app" replace /> : <Outlet />;
+}
+
+function Home() {
+  const { user } = useAuth();
+  return isWorker(user) ? <WorkerDashboard /> : <Dashboard />;
 }
 
 function AdminShellRoute() {
@@ -215,19 +254,22 @@ export default function App() {
             {/* customer workspace */}
             <Route element={<Protected />}>
               <Route element={<AppShellRoute />}>
-                <Route path="/app" element={<Dashboard />} />
-                <Route path="/app/onboarding" element={<Onboarding />} />
+                <Route path="/app" element={<Home />} />
                 <Route path="/app/campaigns" element={<Campaigns />} />
                 <Route path="/app/campaigns/new" element={<CampaignBuilder />} />
                 <Route path="/app/campaigns/:id" element={<CampaignDetail />} />
                 <Route path="/app/contacts" element={<Contacts />} />
-                <Route path="/app/mailboxes" element={<MailboxesPage />} />
                 <Route path="/app/replies" element={<Replies />} />
-                <Route path="/app/suppression" element={<Suppression />} />
-                <Route path="/app/analytics" element={<Analytics />} />
-                <Route path="/app/billing" element={<Billing />} />
-                <Route path="/app/team" element={<Team />} />
-                <Route path="/app/settings" element={<Settings />} />
+                <Route path="/app/chat" element={<TeamChat />} />
+                <Route element={<OwnerOnly />}>
+                  <Route path="/app/onboarding" element={<Onboarding />} />
+                  <Route path="/app/mailboxes" element={<MailboxesPage />} />
+                  <Route path="/app/suppression" element={<Suppression />} />
+                  <Route path="/app/analytics" element={<Analytics />} />
+                  <Route path="/app/billing" element={<Billing />} />
+                  <Route path="/app/team" element={<Team />} />
+                  <Route path="/app/settings" element={<Settings />} />
+                </Route>
               </Route>
             </Route>
 

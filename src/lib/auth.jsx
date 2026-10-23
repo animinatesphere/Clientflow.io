@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { auth as authApi, token, DEMO } from "./api";
-import { DEMO_USER, DEMO_ADMIN } from "./mock";
+import { auth as authApi, token, DEMO, demoUserFor } from "./api";
+import { PLANS } from "./mock";
 
 const AuthContext = createContext(null);
 
@@ -49,8 +49,8 @@ export function AuthProvider({ children }) {
   /* Demo convenience: jump straight into either side of the product without
      a backend. Wired to the "Explore the demo" buttons. */
   const demoSignIn = useCallback((as = "user") => {
-    token.set("demo-token");
-    setUser(as === "admin" ? DEMO_ADMIN : DEMO_USER);
+    token.set(`demo:${as}`);
+    setUser(demoUserFor(as));
   }, []);
 
   return (
@@ -61,6 +61,15 @@ export function AuthProvider({ children }) {
     </AuthContext.Provider>
   );
 }
+
+/* Workers ("member") and read-only seats ("viewer") get the worker
+   workspace. Owners get everything. */
+export const isWorker = (user) => user?.role === "member" || user?.role === "viewer";
+
+export const planFor = (user) => PLANS.find((p) => p.id === user?.plan) || null;
+
+/* Team chat and extra seats come with Growth and Agency. */
+export const hasTeamChat = (user) => !!planFor(user)?.limits.teamChat;
 
 export const useAuth = () => {
   const ctx = useContext(AuthContext);

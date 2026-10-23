@@ -21,6 +21,7 @@ export const PLANS = [
       contacts: 2500,
       sendsPerMonth: 6000,
       seats: 1,
+      teamChat: false,
     },
     features: [
       "2 connected mailboxes",
@@ -44,6 +45,7 @@ export const PLANS = [
       contacts: 25000,
       sendsPerMonth: 40000,
       seats: 3,
+      teamChat: true,
     },
     features: [
       "10 connected mailboxes",
@@ -53,7 +55,8 @@ export const PLANS = [
       "Sending-window and pacing rules",
       "A/B subject line testing",
       "Domain health monitoring",
-      "3 team seats",
+      "Team chat and group channels",
+      "3 team seats, with worker dashboards",
     ],
   },
   {
@@ -67,6 +70,7 @@ export const PLANS = [
       contacts: 150000,
       sendsPerMonth: 250000,
       seats: 15,
+      teamChat: true,
     },
     features: [
       "50 connected mailboxes",
@@ -75,7 +79,8 @@ export const PLANS = [
       "Separate client workspaces",
       "White-label reports and sending domain",
       "Webhooks and REST API",
-      "15 team seats",
+      "Team chat and group channels",
+      "15 team seats, with worker dashboards",
       "Priority support",
     ],
   },
@@ -103,6 +108,117 @@ export const DEMO_ADMIN = {
   role: "admin",
   avatarTint: "#0E1B2A",
 };
+
+/* ── Team and chat ────────────────────────────────────────────────────────
+   A worker is a "member" in the API's vocabulary: they sign in to the same
+   organisation, see only the campaigns they are assigned, and never see
+   billing, team management, or mailbox credentials. */
+
+export const DEMO_WORKER = {
+  id: "u_1043",
+  name: "Ken Adigwe",
+  email: "ken@brightfold.co",
+  company: "Brightfold Studio",
+  role: "member",
+  title: "Outbound associate",
+  avatarTint: "#1F7A5C",
+  plan: "growth",
+  planStatus: "active",
+  invitedBy: "Adaeze Nwosu",
+  campaignIds: ["cp_1", "cp_3"],
+  createdAt: daysAgo(63),
+};
+
+export const TEAM = [
+  {
+    id: DEMO_USER.id,
+    name: DEMO_USER.name,
+    email: DEMO_USER.email,
+    role: "owner",
+    title: "Founder",
+    status: "active",
+    avatarTint: "#1B4B8F",
+    campaignIds: [],
+    lastActiveAt: minsAgo(2),
+  },
+  {
+    id: DEMO_WORKER.id,
+    name: DEMO_WORKER.name,
+    email: DEMO_WORKER.email,
+    role: "member",
+    title: DEMO_WORKER.title,
+    status: "active",
+    avatarTint: DEMO_WORKER.avatarTint,
+    campaignIds: DEMO_WORKER.campaignIds,
+    lastActiveAt: minsAgo(9),
+  },
+  {
+    id: "u_1044",
+    name: "Funmi Bakare",
+    email: "funmi@brightfold.co",
+    role: "member",
+    title: "Account manager",
+    status: "active",
+    avatarTint: "#B07203",
+    campaignIds: ["cp_2"],
+    lastActiveAt: minsAgo(140),
+  },
+];
+
+export const CHANNELS = [
+  {
+    id: "ch_general",
+    type: "group",
+    name: "General",
+    description: "Everyone at Brightfold",
+    memberIds: ["u_1042", "u_1043", "u_1044"],
+    createdBy: "u_1042",
+    pinned: {
+      authorId: "u_1042",
+      body: "This week: Ken owns replies on Q3 manufacturing, Funmi covers Lagos SMB. Book anything warm straight into my calendar.",
+    },
+    unread: { u_1042: 0, u_1043: 2, u_1044: 1 },
+  },
+  {
+    id: "ch_q3",
+    type: "group",
+    name: "Q3 manufacturing",
+    description: "Replies and follow-ups for the UK ops campaign",
+    memberIds: ["u_1042", "u_1043"],
+    createdBy: "u_1042",
+    unread: { u_1042: 2, u_1043: 0 },
+  },
+  {
+    id: "ch_lagos",
+    type: "group",
+    name: "Lagos SMB",
+    description: "Bookkeeping offer",
+    memberIds: ["u_1042", "u_1044"],
+    createdBy: "u_1042",
+    unread: { u_1042: 0, u_1044: 0 },
+  },
+  {
+    id: "dm_1042_1043",
+    type: "direct",
+    memberIds: ["u_1042", "u_1043"],
+    unread: { u_1042: 0, u_1043: 1 },
+  },
+];
+
+export const MESSAGES = [
+  { id: "m_1", channelId: "ch_general", authorId: "u_1042", body: "Morning all. Q3 list is fully loaded — 1,840 contacts, sending across three mailboxes.", at: minsAgo(1500) },
+  { id: "m_2", channelId: "ch_general", authorId: "u_1044", body: "Lagos campaign is live too. Two replies already, one wants pricing.", at: minsAgo(1460) },
+  { id: "m_3", channelId: "ch_general", authorId: "u_1043", body: "I'll take the Q3 replies from today 👍", at: minsAgo(1440) },
+  { id: "m_4", channelId: "ch_general", authorId: "u_1042", body: "Reminder: partnerships@ got disconnected. I'm reconnecting it this afternoon, so expect a slower day on that box.", at: minsAgo(95) },
+  { id: "m_5", channelId: "ch_general", authorId: "u_1044", body: "Noted. Anyone free to review my follow-up copy before lunch?", at: minsAgo(40) },
+  { id: "m_6", channelId: "ch_q3", authorId: "u_1043", body: "Chidi at Kestrel Foods wants the one-pager. Sending it now.", at: minsAgo(30) },
+  { id: "m_7", channelId: "ch_q3", authorId: "u_1043", body: "Also Grace at Tidewater referred us to their ops lead. Should I add her as a new contact or reply in thread?", at: minsAgo(22) },
+  { id: "m_8", channelId: "ch_q3", authorId: "u_1042", body: "Reply in thread first so the context carries, then add her to the list.", at: minsAgo(18) },
+  { id: "m_9", channelId: "ch_q3", authorId: "u_1043", body: "Done. She's booked for Thursday 2pm.", at: minsAgo(6) },
+  { id: "m_10", channelId: "ch_lagos", authorId: "u_1044", body: "Bookkeeping offer is at 8.5% reply rate. Better than I expected.", at: minsAgo(300) },
+  { id: "m_11", channelId: "ch_lagos", authorId: "u_1042", body: "Great. Keep the daily ceiling where it is for another week.", at: minsAgo(280) },
+  { id: "m_12", channelId: "dm_1042_1043", authorId: "u_1042", body: "Nice work on the Tidewater booking. Can you send me the call notes after Thursday?", at: minsAgo(4) },
+];
 
 export const MAILBOXES = [
   {

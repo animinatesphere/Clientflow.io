@@ -76,7 +76,13 @@ export function Login() {
 
   const jump = (as) => {
     demoSignIn(as);
-    toast(as === "admin" ? "Signed in to the admin demo" : "Signed in to the demo workspace");
+    toast(
+      as === "admin"
+        ? "Signed in to the admin demo"
+        : as === "worker"
+        ? "Signed in as Ken, a worker at Brightfold"
+        : "Signed in to the demo workspace"
+    );
     navigate(as === "admin" ? "/admin" : "/app");
   };
 
@@ -140,12 +146,15 @@ export function Login() {
           <p className="text-[13px] text-slate">
             No backend connected yet, so this build runs on sample data. Jump straight in:
           </p>
-          <div className="mt-3 flex gap-2">
-            <Button size="sm" variant="secondary" className="flex-1" onClick={() => jump("user")}>
-              Customer workspace
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <Button size="sm" variant="secondary" onClick={() => jump("user")}>
+              Company owner
             </Button>
-            <Button size="sm" variant="secondary" className="flex-1" onClick={() => jump("admin")}>
-              Admin dashboard
+            <Button size="sm" variant="secondary" onClick={() => jump("worker")}>
+              Worker
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => jump("admin")}>
+              Platform admin
             </Button>
           </div>
         </Card>

@@ -1105,3 +1105,85 @@ The backend is finished when all of the following are true:
 - A campaign at 9% bounce rate pauses itself without anyone intervening.
 - Stripe webhooks are idempotent: firing the same event twice changes nothing the second time.
 - A restore from last night's backup produces a working system.
+
+---
+
+## 16. Team seats, workers and team chat
+
+Growth and Agency include extra seats and team chat (`plan.limits.seats`,
+`plan.limits.teamChat`). Starter is a single seat with no chat. The frontend calls for
+this live in `team` and `chat` in `src/lib/api.js`.
+
+### 16.1 Roles
+
+| Role | Shown in the UI as | Can do |
+|---|---|---|
+| `owner` | Owner | Everything, including billing, seats, mailboxes and settings |
+| `member` | Worker | Campaigns **assigned to them**, replies on those campaigns, contacts, team chat |
+| `viewer` | Viewer | Read-only on assigned campaigns, team chat |
+
+**Enforce this on the server.** The frontend hides owner pages from workers, but anyone can
+call the API directly. Every campaign, reply and send query for a `member` or `viewer` must
+add `{ _id: { $in: user.campaignIds } }` (or `campaignId: { $in: ... }`) on top of the
+`orgId` filter. Billing, team, mailbox, suppression, analytics and settings routes return
+`403` for anyone but an `owner`.
+
+### 16.2 Model changes
+
+```js
+// User — add:
+title:       { type: String, default: "" },
+status:      { type: String, enum: ["invited","active"], default: "active" },
+campaignIds: [{ type: ObjectId, ref: "Campaign" }],   // what a worker may touch
+inviteTokenHash:    { type: String, select: false },
+inviteTokenExpires: { type: Date,   select: false },
+
+// Channel — a group chat or a direct message
+const channelSchema = new Schema({
+  orgId:       { type: ObjectId, ref: "Organization", required: true, index: true },
+  type:        { type: String, enum: ["group","direct"], required: true },
+  name:        { type: String, trim: true },          // groups only
+  description: { type: String, default: "" },
+  memberIds:   [{ type: ObjectId, ref: "User", index: true }],
+  createdBy:   { type: ObjectId, ref: "User" },
+  pinned:      { authorId: ObjectId, body: String },
+  lastReadAt:  { type: Map, of: Date, default: {} }, // userId → last read, drives unread counts
+}, { timestamps: true });
+
+// Message
+const messageSchema = new Schema({
+  orgId:     { type: ObjectId, ref: "Organization", required: true, index: true },
+  channelId: { type: ObjectId, ref: "Channel", required: true },
+  authorId:  { type: ObjectId, ref: "User", required: true },
+  body:      { type: String, required: true, maxlength: 4000 },
+}, { timestamps: true });
+messageSchema.index({ channelId: 1, createdAt: 1 });
+```
+
+### 16.3 Endpoints
+
+| Method | Path | Who | Notes |
+|---|---|---|---|
+| GET | `/team` | any seat | Everyone in the org, including pending invites. Never return password or token fields. |
+| POST | `/team/invite` | owner | `{ email, role, campaignIds }`. Reject when `seats used >= plan.limits.seats`. Emails a single-use invite link. |
+| PATCH | `/team/:id` | owner | `{ role?, campaignIds? }`. Cannot demote the last owner. |
+| DELETE | `/team/:id` | owner | Also removes them from every channel. Cannot remove the last owner. |
+| GET | `/chat/channels` | any seat | Only channels the caller is a member of, each with `lastMessage` and `unread`. |
+| POST | `/chat/channels` | owner | `{ name, description, memberIds }`. Every member must belong to the same org. |
+| POST | `/chat/direct` | any seat | `{ userId }`. Returns the existing DM between the two, or creates it. |
+| GET | `/chat/channels/:id/messages` | channel member | Paginate with `?before=<iso>`; default 50. |
+| POST | `/chat/channels/:id/messages` | channel member | `{ body }`. Trim, reject empty, cap at 4,000 characters. |
+| POST | `/chat/channels/:id/read` | channel member | Sets `lastReadAt[userId] = now`. |
+
+Return `403` from every `/chat` route when the org's plan has `teamChat: false`, and `404`
+(not `403`) when the caller is not a member of the channel, so channel ids cannot be probed.
+
+### 16.4 Real-time
+
+The frontend polls every four seconds through `chat.subscribe()`. That is fine for small
+teams. When you want instant delivery, add Socket.IO on the same server, emit
+`message`, `typing` and `read` events into a room per channel id, and change only
+`chat.subscribe()` in `src/lib/api.js` to listen on the socket.
+
+Test to add alongside the org-isolation test from section 0: a worker assigned to campaign A
+calls `GET /campaigns/B` and gets `404`.

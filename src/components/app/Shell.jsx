@@ -3,7 +3,8 @@ import { Link, NavLink, useNavigate, Outlet } from "react-router-dom";
 import { Menu, X, LogOut, ChevronDown, ExternalLink, ShieldAlert } from "lucide-react";
 import { LogoMark } from "../Logo";
 import { Avatar, Button, Meter, useToast } from "../ui";
-import { useAuth } from "../../lib/auth";
+import { useAuth, isWorker } from "../../lib/auth";
+import ChatDock from "./ChatDock";
 import { useDismiss } from "../../lib/hooks";
 import { num } from "../../lib/format";
 
@@ -105,7 +106,16 @@ export default function Shell({ nav, variant = "app", title }) {
           ))}
         </nav>
 
-        {!admin && user?.usage && <UsageFoot usage={user.usage} />}
+        {!admin && !isWorker(user) && user?.usage && <UsageFoot usage={user.usage} />}
+        {!admin && isWorker(user) && (
+          <div className="border-t border-rule px-5 py-4">
+            <p className="truncate text-[13px] font-medium">{user.company}</p>
+            <p className="mt-0.5 text-[12.5px] text-slate">
+              {user.role === "viewer" ? "Viewer, read only" : "Worker"}
+              {user.invitedBy ? ` · added by ${user.invitedBy.split(" ")[0]}` : ""}
+            </p>
+          </div>
+        )}
         {admin && (
           <div className="border-t border-ink-line px-5 py-4">
             <Link
@@ -134,6 +144,8 @@ export default function Shell({ nav, variant = "app", title }) {
           <Outlet />
         </main>
       </div>
+
+      {!admin && <ChatDock />}
     </div>
   );
 }
@@ -186,7 +198,7 @@ function Topbar({ onMenu, admin, title }) {
       </div>
 
       <div className="flex items-center gap-3">
-        {!admin && (
+        {!admin && user?.role !== "viewer" && (
           <Button as={Link} to="/app/campaigns/new" size="sm" className="hidden sm:inline-flex">
             New campaign
           </Button>
@@ -209,6 +221,7 @@ function Topbar({ onMenu, admin, title }) {
                 <p className="truncate text-[14px] font-medium">{user?.name}</p>
                 <p className="truncate text-[13px] text-slate">{user?.email}</p>
               </div>
+              {!isWorker(user) && (
               <Link
                 to={admin ? "/admin/settings" : "/app/settings"}
                 onClick={() => setMenu(false)}
@@ -216,7 +229,8 @@ function Topbar({ onMenu, admin, title }) {
               >
                 Settings
               </Link>
-              {!admin && (
+              )}
+              {!admin && !isWorker(user) && (
                 <Link
                   to="/app/billing"
                   onClick={() => setMenu(false)}
